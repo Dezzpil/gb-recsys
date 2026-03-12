@@ -6,8 +6,9 @@ from config import config
 
 def add_products_to_purchases(orders_path, products_path, output_path=None):
     if not output_path:
-        base, ext = os.path.splitext(orders_path)
-        output_path = os.path.join(config.METRIKA_DATA_DIR, f"{base}-with-products{ext}")
+        base_name = os.path.basename(orders_path)
+        name, ext = os.path.splitext(base_name)
+        output_path = os.path.join(config.ORDERS_DATA_DIR, f"{name}-with-products{ext}")
     
     # Загружаем skuId из файла продуктов в память
     sku_ids = []
@@ -72,7 +73,7 @@ def add_products_to_purchases(orders_path, products_path, output_path=None):
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
-        print("Использование: python add_products_to_purchases.py <purchases_csv> <products_csv> [output_csv]")
+        print("Использование: python add_products_to_orders.py <purchases_csv> <products_csv> [output_csv]")
     else:
         purch_file = sys.argv[1]
         prod_file = sys.argv[2]

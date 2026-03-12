@@ -15,8 +15,8 @@ def get_latest_file(pattern):
     # Sort by mtime
     return max(files, key=os.path.getmtime)
 
-def parse_products_list(s):
-    if not s or s == '[]':
+def parse_list_string(s):
+    if not s or s == '[]' or not isinstance(s, str):
         return []
     try:
         # Pre-process: remove literal backslashes which might be in the CSV
@@ -24,7 +24,7 @@ def parse_products_list(s):
         # ast.literal_eval is safer than eval
         res = ast.literal_eval(s_clean)
         if isinstance(res, list):
-            return [html.unescape(p) for p in res]
+            return [html.unescape(str(p)) if isinstance(p, str) else p for p in res]
         return []
     except Exception:
         # If it fails, we might have some very broken string, return empty
@@ -60,6 +60,8 @@ def run_merge():
 
     # 3. Read orders
     df_orders = pd.read_csv(orders_file, dtype={'Last Ymcid': str, 'Email': str, 'productsSkuIds': str})
+    # Convert Cdate to datetime (dayfirst=True because it is DD.MM.YYYY)
+    df_orders['Cdate'] = pd.to_datetime(df_orders['Cdate'], dayfirst=True)
     orders_records_count = len(df_orders)
     
     # Map Email to SKU IDs for purchases (weight = 1)
@@ -70,7 +72,8 @@ def run_merge():
     
     # Match skuId -> product_id
     df_orders_exploded['product_id'] = df_orders_exploded['sku_list'].map(sku_to_id)
-    df_purchases = df_orders_exploded.dropna(subset=['product_id'])[['Email', 'product_id']]
+    df_purchases = df_orders_exploded.dropna(subset=['product_id'])[['Email', 'product_id', 'Cdate']]
+    df_purchases = df_purchases.rename(columns={'Cdate': 'datetime'})
     df_purchases['weight'] = 1.0
     
     # Collect missing SKU IDs for analysis
@@ -83,22 +86,28 @@ def run_merge():
     unique_ymcids = df_orders['Last Ymcid'].dropna().unique()
     df_metrika = df_metrika[df_metrika['ym:s:clientID'].isin(unique_ymcids)]
     
-    # Process metrika products
-    df_metrika['products'] = df_metrika['ym:s:impressionsProductName'].apply(parse_products_list)
-    df_metrika_exploded = df_metrika.explode('products')
+    # Process metrika products and datetimes
+    df_metrika['products'] = df_metrika['ym:s:impressionsProductName'].apply(parse_list_string)
+    df_metrika['datetimes'] = df_metrika['ym:s:impressionsDateTime'].apply(parse_list_string)
+    
+    # Synchronously explode products and datetimes
+    df_metrika_exploded = df_metrika.explode(['products', 'datetimes'])
     df_metrika_exploded = df_metrika_exploded.dropna(subset=['products'])
     
     # Merge metrika and orders to get email for views
     df_views_raw = pd.merge(
         df_orders[['Email', 'Last Ymcid']].drop_duplicates(),
-        df_metrika_exploded[['ym:s:clientID', 'products']],
+        df_metrika_exploded[['ym:s:clientID', 'products', 'datetimes']],
         left_on='Last Ymcid',
         right_on='ym:s:clientID'
     )
     
     # Match product_name -> product_id
     df_views_raw['product_id'] = df_views_raw['products'].map(name_to_id)
-    df_views = df_views_raw.dropna(subset=['product_id'])[['Email', 'product_id']]
+    df_views = df_views_raw.dropna(subset=['product_id'])[['Email', 'product_id', 'datetimes']]
+    df_views = df_views.rename(columns={'datetimes': 'datetime'})
+    # Convert metrika dates (YYYY-MM-DD HH:MM:SS)
+    df_views['datetime'] = pd.to_datetime(df_views['datetime'])
     df_views['weight'] = 0.5
     
     # Collect missing product names
@@ -118,26 +127,19 @@ def run_merge():
                 f.write("\n".join(map(str, missing_names)))
         print(f"Missing products fixed in {missing_file} (SKUs: {len(missing_skus)}, Names: {len(missing_names)})")
 
-    # 5. Combine and resolve weights (max weight per email, product_id)
+    # 5. Combine and resolve weights (max weight per email, product_id, with max datetime)
     df_combined = pd.concat([df_purchases, df_views])
-    df_final = df_combined.groupby(['Email', 'product_id'], as_index=False)['weight'].max()
+    df_final = df_combined.groupby(['Email', 'product_id'], as_index=False).agg({
+        'weight': 'max',
+        'datetime': 'max'
+    })
     df_final = df_final.rename(columns={'Email': 'email'})
     df_final['product_id'] = df_final['product_id'].astype(int)
     
-    # 6. Save to CSV
-    # Ensure directory exists
-    os.makedirs(config.MERGED_DATA_DIR, exist_ok=True)
-    date_str = datetime.now().strftime("%Y%m%d")
-    output_csv = os.path.join(config.MERGED_DATA_DIR, f"{date_str}_email_products.csv")
-    df_final.to_csv(output_csv, index=False)
-    
-    unique_emails_count = df_final['email'].nunique()
-    unique_products_count = df_final['product_id'].nunique()
-    
-    duration = time.time() - t0
-    
-    # 7. Log to DB (Same as before, maybe add more info)
+    # 6. Save to DB and CSV
     engine = create_engine(config.DB_URL)
+    
+    # 6.1 Log merge process first to get merge_log_id
     metadata = MetaData()
     merge_logs = Table(
         'merge_logs', metadata,
@@ -152,8 +154,12 @@ def run_merge():
         Column('merge_time', DateTime)
     )
     
+    unique_emails_count = df_final['email'].nunique()
+    unique_products_count = df_final['product_id'].nunique()
+    duration = time.time() - t0
+
     with engine.begin() as conn:
-        conn.execute(merge_logs.insert().values(
+        result = conn.execute(merge_logs.insert().values(
             start_time=start_time,
             duration=duration,
             metrika_file=os.path.basename(metrika_file),
@@ -162,11 +168,23 @@ def run_merge():
             unique_emails_count=unique_emails_count,
             unique_products_count=unique_products_count,
             merge_time=datetime.now()
-        ))
+        ).returning(merge_logs.c.id))
+        merge_log_id = result.scalar()
+    
+    # 6.2 Save interactions with merge_log_id
+    df_final['merge_log_id'] = merge_log_id
+    df_final.to_sql('user_interactions', engine, if_exists='append', index=False)
+    
+    # 6.3 Save to CSV
+    # Ensure directory exists
+    os.makedirs(config.MERGED_DATA_DIR, exist_ok=True)
+    date_str = datetime.now().strftime("%Y%m%d")
+    output_csv = os.path.join(config.MERGED_DATA_DIR, f"{date_str}_email_products.csv")
+    df_final.to_csv(output_csv, index=False)
     
     print(f"Merge completed. Results saved to {output_csv}.")
     print(f"Unique emails: {unique_emails_count}, Unique products: {unique_products_count}")
-    print(f"Logged to DB.")
+    print(f"Logged to DB with merge_log_id: {merge_log_id}")
 
 if __name__ == "__main__":
     run_merge()

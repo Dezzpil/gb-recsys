@@ -33,7 +33,7 @@
 ### Использование скрипта обогащения данных
 Для добавления случайных продуктов в файл покупок (1-3 продукта на заказ с распределением 60%/30%/10%):
 ```bash
-python3 add_products_to_purchases.py assets/20260302-gb-orders.csv assets/20251012-gb-products.csv
+python3 add_products_to_orders.py assets/20260302-gb-orders.csv assets/20251012-gb-products.csv
 ```
 Результат будет сохранен в `data/orders` с суффиксом `-with-products.csv`.
 
