@@ -30,28 +30,10 @@
     - `implicit`, `lightfm`, `rectools` — построение и оценка моделей рекомендательных систем.
     - `requests` — взаимодействие с внешними API.
 
-### Структура проекта
-- `add_products_to_purchases.py` — скрипт для обогащения данных о покупках информацией о продуктах (генерация случайных покупок для тестов).
-- `assets/` — папка с данными и ноутбуками:
-    - `01-cf.ipynb` — начальные эксперименты с User-based коллаборативной фильтрацией на данных о покупках.
-    - `04-metrika-pipeline.ipynb` — пайплайн для сбора и подготовки данных из Яндекс.Метрики.
-    - `05-rectools-baselines.ipynb` — комплексное сравнение моделей и выбор лучших бейзлайнов.
-    - `20251012-gb-products.csv / .sql` — данные о номенклатуре товаров GamersBase.
-    - `20260302-gb-purchases.csv` — данные о покупках с указанием ClientId Яндекс.Метрики (`Last Ymcid`).
-    - `20260302-gb-purchases-with-products.csv` — результат работы скрипта `add_products_to_purchases.py`.
-- `docker-compose.yml` — конфигурация Docker для запуска PostgreSQL v17.
-- `.env.example` — шаблон файла переменных окружения.
-- `requirements.txt` — список зависимостей проекта.
-- `alembic.ini` — конфигурация Alembic для управления миграциями.
-- `migrations/` — папка с файлами миграций базы данных.
-- `app/export_metrika.py` — скрипт для автоматизированной выгрузки данных из Яндекс.Метрики.
-- `app/merge_metrika_orders.py` — скрипт для объединения данных заказов и Яндекс.Метрики.
-- `config.py` — файл конфигурации, читающий параметры из `.env`.
-
 ### Использование скрипта обогащения данных
 Для добавления случайных продуктов в файл покупок (1-3 продукта на заказ с распределением 60%/30%/10%):
 ```bash
-python3 add_products_to_purchases.py assets/20260302-gb-orders.csv assets/20251012-gb-orders.csv
+python3 add_products_to_purchases.py assets/20260302-gb-orders.csv assets/20251012-gb-products.csv
 ```
 Результат будет сохранен в `data/orders` с суффиксом `-with-products.csv`.
 
