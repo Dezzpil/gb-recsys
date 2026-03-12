@@ -1,2 +1,7 @@
 .venv
 .idea
+.env
+
+# Data directories
+data/metrika
+!data/metrika/.gitkeep
