@@ -39,6 +39,13 @@
     - `20251012-gb-products.csv / .sql` — данные о номенклатуре товаров GamersBase.
     - `20260302-gb-purchases.csv` — данные о покупках с указанием ClientId Яндекс.Метрики (`Last Ymcid`).
     - `20260302-gb-purchases-with-products.csv` — результат работы скрипта `add_products_to_purchases.py`.
+- `docker-compose.yml` — конфигурация Docker для запуска PostgreSQL v17.
+- `.env.example` — шаблон файла переменных окружения.
+- `requirements.txt` — список зависимостей проекта.
+- `alembic.ini` — конфигурация Alembic для управления миграциями.
+- `migrations/` — папка с файлами миграций базы данных.
+- `export_metrika.py` — скрипт для автоматизированной выгрузки данных из Яндекс.Метрики.
+- `config.py` — файл конфигурации, читающий параметры из `.env`.
 
 ### Использование скрипта обогащения данных
 Для добавления случайных продуктов в файл покупок (1-3 продукта на заказ с распределением 60%/30%/10%):
@@ -46,5 +53,64 @@
 python3 add_products_to_purchases.py assets/20260302-gb-purchases.csv assets/20251012-gb-products.csv
 ```
 Результат будет сохранен в файл с суффиксом `-with-products.csv`.
+
+### Использование скрипта выгрузки Яндекс.Метрики
+Скрипт `export_metrika.py` позволяет выгружать логи визитов из Яндекс.Метрики за указанный период. По умолчанию выгружаются данные за последние 3 года.
+Пример запуска:
+```bash
+# Выгрузка за 3 года (по умолчанию)
+python3 export_metrika.py
+
+# Выгрузка за конкретный период
+python3 export_metrika.py --start 2024-01-01 --end 2024-12-31
+```
+Результаты сохраняются в директорию, указанную в `METRIKA_DATA_DIR` (по умолчанию `data/metrika`), а информация о выгрузке логируется в таблицу `metrika_logs` в БД.
+
+### Установка
+```shell
+conda create -n gb-recsys
+conda activate gb-recsys
+conda install -c conda-forge lightfm
+pip install -r requirements.txt
+```
+
+### Настройка базы данных и миграции
+
+Для работы с базой данных используется PostgreSQL v17, запускаемая через Docker Compose, и Alembic для управления миграциями.
+
+#### Подготовка окружения
+Скопируйте `.env.example` в `.env` и при необходимости измените реквизиты доступа:
+```bash
+cp .env.example .env
+```
+
+#### Запуск базы данных
+Для запуска PostgreSQL в контейнере выполните:
+```bash
+docker-compose up -d
+```
+
+#### Управление миграциями
+Alembic используется для обновления схемы базы данных.
+
+- **Применить все миграции до актуальной версии**:
+  ```bash
+  alembic upgrade head
+  ```
+
+- **Создать новую миграцию (после изменения моделей)**:
+  ```bash
+  alembic revision --autogenerate -m "description of changes"
+  ```
+
+- **Откатить последнюю миграцию**:
+  ```bash
+  alembic downgrade -1
+  ```
+
+- **Посмотреть текущий статус миграций**:
+  ```bash
+  alembic current
+  ```
 
 

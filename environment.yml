@@ -1,0 +1,5 @@
+name: gb-recsys
+channels:
+  - defaults
+dependencies:
+  - lightfm
