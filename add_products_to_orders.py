@@ -2,11 +2,12 @@ import csv
 import random
 import sys
 import os
+from config import config
 
-def add_products_to_purchases(purchases_path, products_path, output_path=None):
+def add_products_to_purchases(orders_path, products_path, output_path=None):
     if not output_path:
-        base, ext = os.path.splitext(purchases_path)
-        output_path = f"{base}-with-products{ext}"
+        base, ext = os.path.splitext(orders_path)
+        output_path = os.path.join(config.METRIKA_DATA_DIR, f"{base}-with-products{ext}")
     
     # Загружаем skuId из файла продуктов в память
     sku_ids = []
@@ -34,7 +35,7 @@ def add_products_to_purchases(purchases_path, products_path, output_path=None):
     
     # Итеративно обрабатываем покупки (используя потоки чтения/записи)
     try:
-        with open(purchases_path, mode='r', encoding='utf-8') as f_in, \
+        with open(orders_path, mode='r', encoding='utf-8') as f_in, \
              open(output_path, mode='w', encoding='utf-8', newline='') as f_out:
             
             reader = csv.DictReader(f_in)
@@ -61,7 +62,7 @@ def add_products_to_purchases(purchases_path, products_path, output_path=None):
                 
                 writer.writerow(row)
     except FileNotFoundError:
-        print(f"Ошибка: Файл покупок не найден: {purchases_path}")
+        print(f"Ошибка: Файл покупок не найден: {orders_path}")
         return
     except Exception as e:
         print(f"Ошибка при обработке покупок: {e}")

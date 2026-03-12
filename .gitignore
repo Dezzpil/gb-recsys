@@ -5,3 +5,7 @@
 # Data directories
 data/metrika
 !data/metrika/.gitkeep
+data/orders
+!data/orders/.gitkeep
+data/merged
+!data/merged/.gitkeep
