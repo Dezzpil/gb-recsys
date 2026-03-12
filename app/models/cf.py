@@ -31,7 +31,7 @@ class CFModel(BaseModel):
             result = conn.execute(query).fetchone()
             return result.id if result else None
 
-    def fit(self, merge_log_id: int = None, top_n: int = 5, neighbor_count: int = 5, neighbor_thresh: float = 0.3):
+    def fit(self, merge_log_id: int = None, top_n: int = 10, neighbor_count: int = 5, neighbor_thresh: float = 0.3):
         """
         Train the model using data from user_interactions for a specific merge_log_id.
         If merge_log_id is None, use the latest one.
@@ -90,9 +90,9 @@ class CFModel(BaseModel):
             # To be consistent with the notebook's "experience":
             scores = similar_users_data.sum(axis=0)
 
-            # Exclude products already "consumed" by the user
+            # Exclude products already purchased by the user (weight = 1.0)
             user_consumed = user_item_matrix.loc[user_email]
-            recommendations = scores[user_consumed == 0].sort_values(ascending=False).head(top_n)
+            recommendations = scores[user_consumed < 1.0].sort_values(ascending=False).head(top_n)
             
             # Filter out zero scores
             recommendations = recommendations[recommendations > 0]

@@ -81,7 +81,7 @@ class SimilarModel(BaseModel):
                 id_to_similar_names[row['id']] = names
 
         # 2. Load user interactions
-        query = f"SELECT email, product_id FROM user_interactions WHERE merge_log_id = {merge_log_id}"
+        query = f"SELECT email, product_id, weight FROM user_interactions WHERE merge_log_id = {merge_log_id}"
         interactions_df = pd.read_sql(query, self.engine)
 
         if interactions_df.empty:
@@ -94,14 +94,15 @@ class SimilarModel(BaseModel):
 
         for email, group in user_grouped:
             user_products = set(group['product_id'].tolist())
+            user_purchases = set(group[group['weight'] == 1.0]['product_id'].tolist())
             recs_counts = Counter()
             
             for pid in user_products:
                 similar_names = id_to_similar_names.get(pid, [])
                 for name in similar_names:
                     similar_id = name_to_id.get(name)
-                    # Don't recommend products the user already interacted with
-                    if similar_id and similar_id not in user_products:
+                    # Don't recommend products the user already purchased
+                    if similar_id and similar_id not in user_purchases:
                         recs_counts[similar_id] += 1
             
             top_recs = recs_counts.most_common(top_n)

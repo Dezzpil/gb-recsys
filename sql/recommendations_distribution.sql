@@ -1,15 +1,16 @@
 -- Распределение количества рекомендаций для каждого email (которые есть в user_interactions)
--- для модели 'user_based_cf'
+-- сразу от двух моделей: 'user_based_cf' и 'similar_games'
+
+delete from recommendations where merge_log_id is null;
 
 WITH email_recommendations_count AS (
     SELECT 
         r.email, 
-        COUNT(*) as rec_count
+        COUNT(DISTINCT r.product_id) as rec_count
     FROM 
         recommendations r
     WHERE 
-        -- r.model_name = 'user_based_cf'
-        r.model_name = 'similar_games'
+        r.model_name IN ('user_based_cf', 'similar_games')
         AND r.email IN (SELECT DISTINCT email FROM user_interactions)
     GROUP BY 
         r.email
