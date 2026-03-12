@@ -9,3 +9,5 @@ data/orders
 !data/orders/.gitkeep
 data/merged
 !data/merged/.gitkeep
+data/products
+!data/products/.gitkeep

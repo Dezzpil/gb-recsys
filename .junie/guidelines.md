@@ -17,6 +17,10 @@
 - `app/` — основные скрипты обработки данных:
     - `export_metrika.py` — автоматизированная выгрузка данных из Яндекс.Метрики через Logs API.
     - `merge_metrika_orders.py` — объединение данных заказов и Метрики в единый датасет для обучения.
+    - `train_cf.py` — обучение модели коллаборативной фильтрации.
+    - `models/` — реализация моделей рекомендаций:
+        - `base.py` — базовый класс моделей.
+        - `cf.py` — реализация User-based Collaborative Filtering.
 - `assets/` — папка с исходными данными и Jupyter-ноутбуками:
     - `01-cf.ipynb` — эксперименты с User-based CF.
     - `04-metrika-pipeline.ipynb` — пайплайн подготовки данных Метрики.
@@ -62,6 +66,15 @@
 В БД PostgreSQL хранятся логи процессов для мониторинга:
 - `metrika_logs`: `start_time`, `duration`, `period_start`, `period_end`, `file_size`, `records_count`.
 - `merge_logs`: `start_time`, `duration`, `metrika_file`, `orders_file`, `orders_records_count`, `unique_emails_count`, `unique_products_count`.
+- `recommendations`: `email`, `product_id`, `score`, `model_name`, `merge_log_id`, `created_at`.
+
+### 4. Обучение моделей (fit / predict)
+Все модели должны наследоваться от `BaseModel` и реализовывать методы:
+- `fit(merge_log_id)`: Обучение модели на данных `user_interactions`, соответствующих указанному `merge_log_id`. Результат обучения (топ рекомендаций) сохраняется в таблицу `recommendations`.
+- `predict(email)`: Получение списка рекомендованных `product_id` для пользователя.
+
+**Collaborative Filtering (CF):**
+Алгоритм основан на сходстве пользователей (User-based). Использует матрицу "пользователь-товар" с весами (1.0 — покупка, 0.5 — просмотр). Сходство рассчитывается через `cosine_similarity`.
 
 ## Рекомендации по разработке
 

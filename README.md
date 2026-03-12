@@ -70,6 +70,25 @@ PYTHONPATH=. python3 app/merge_metrika_orders.py
 ```
 Результат сохраняется в `data/merged/DATE_email_products.csv` в формате `email, product_id, weight`. Информация о процессе логируется в таблицу `merge_logs` в БД.
 
+### Обучение моделей рекомендаций
+Для обучения моделей используется директория `models/`. Каждая модель реализует интерфейс `BaseModel` с методами `fit()` и `predict()`.
+
+1. **User-based Collaborative Filtering (CF)**:
+    - Реализация в `app/models/cf.py`.
+    - Использует данные из таблицы `user_interactions` для расчета сходства пользователей.
+    - Результаты обучения (топ-N рекомендаций для каждого пользователя) сохраняются в таблицу `recommendations` в БД.
+    - Каждое обучение привязывается к `merge_log_id`, что позволяет отслеживать, на каких данных была обучена модель.
+
+Пример запуска обучения:
+```bash
+PYTHONPATH=. python3 app/train_cf.py
+```
+
+### Полезные SQL-запросы
+Готовые SQL-запросы для аналитики и проверки данных находятся в папке `sql/`.
+Например:
+- `sql/recommendations_distribution.sql` — распределение количества рекомендаций по пользователям для модели `user_based_cf`.
+
 ### Установка
 ```shell
 conda create -n gb-recsys
