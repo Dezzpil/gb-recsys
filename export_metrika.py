@@ -106,7 +106,8 @@ class MetrikaExporter:
     def process_files(self, files, output_file):
         dfs = []
         for f in files:
-            df_part = pd.read_csv(f, delimiter='\t')
+            # Explicitly set dtype for clientID to avoid scientific notation
+            df_part = pd.read_csv(f, delimiter='\t', dtype={'ym:s:clientID': str})
             dfs.append(df_part)
             
         if not dfs:
