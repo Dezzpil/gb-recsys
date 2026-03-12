@@ -1,19 +1,12 @@
 import os
-import glob
 import pandas as pd
 import ast
 import html
 import time
 from datetime import datetime
 from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, Float, DateTime
-from config import config
+from config import config, get_latest_file
 
-def get_latest_file(pattern):
-    files = glob.glob(pattern)
-    if not files:
-        return None
-    # Sort by mtime
-    return max(files, key=os.path.getmtime)
 
 def parse_list_string(s):
     if not s or s == '[]' or not isinstance(s, str):
@@ -37,7 +30,7 @@ def run_merge():
     # 1. Find files
     metrika_pattern = os.path.join(config.METRIKA_DATA_DIR, "metrika_*.csv")
     orders_pattern = os.path.join(config.ORDERS_DATA_DIR, "*orders-with-products*.csv")
-    products_pattern = os.path.join(config.PRODUCTS_DATA_DIR, "*-gb-products.csv")
+    products_pattern = os.path.join(config.PRODUCTS_DATA_DIR, "*products*.csv")
     
     metrika_file = get_latest_file(metrika_pattern)
     orders_file = get_latest_file(orders_pattern)

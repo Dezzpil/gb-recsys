@@ -1,9 +1,8 @@
 import pandas as pd
 from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, Float, DateTime, desc
-from config import config
+from config import config, get_latest_file
 from app.models.base import BaseModel
 from datetime import datetime
-import glob
 import os
 from collections import Counter
 
@@ -47,28 +46,15 @@ class SimilarModel(BaseModel):
         print(f"Training Similar Games model using data from merge_log_id: {merge_log_id}")
 
         # 1. Load products from CSV
-        # Search in data/products/ first, then assets/ as fallback
-        csv_files = glob.glob(os.path.join(config.PRODUCTS_DATA_DIR, "*.csv"))
-        if not csv_files:
-            csv_files = glob.glob("assets/*-gb-products.csv")
-            
-        if not csv_files:
+        products_pattern = os.path.join(config.PRODUCTS_DATA_DIR, "*products*.csv")
+        products_file = get_latest_file(products_pattern)
+
+        if not products_file:
             print("No product CSV files found.")
             return
 
-        all_products = []
-        for f in csv_files:
-            try:
-                df_prod = pd.read_csv(f)
-                all_products.append(df_prod)
-            except Exception as e:
-                print(f"Error reading {f}: {e}")
-        
-        if not all_products:
-            print("Could not load any product data.")
-            return
-
-        products_df = pd.concat(all_products).drop_duplicates(subset=['id'])
+        print(f"Loading products from: {products_file}")
+        products_df = pd.read_csv(products_file).drop_duplicates(subset=['id'])
         
         # Build name to id mapping
         name_to_id = products_df.dropna(subset=['name']).set_index('name')['id'].to_dict()

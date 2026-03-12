@@ -1,4 +1,5 @@
 import os
+import glob
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -15,4 +16,15 @@ class Config:
     MERGED_DATA_DIR = os.getenv("MERGED_DATA_DIR")
     PRODUCTS_DATA_DIR = os.getenv("PRODUCTS_DATA_DIR", "data/products")
 
+    STEAM_API_URL = os.getenv("STEAM_API_URL", "http://127.0.0.1:3000/api/search-similar")
+    STEAM_SWAGGER_URL = os.getenv("STEAM_SWAGGER_URL", "http://127.0.0.1:3000/swagger.json")
+    STEAM_CALLBACK_PORT = int(os.getenv("STEAM_CALLBACK_PORT", "3001"))
+
 config = Config()
+
+def get_latest_file(pattern):
+    files = glob.glob(pattern)
+    if not files:
+        return None
+    # Sort by mtime
+    return max(files, key=os.path.getmtime)
