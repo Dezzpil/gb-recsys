@@ -1,6 +1,7 @@
 import pandas as pd
 import os
-from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, Float, DateTime, desc
+from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, Float, DateTime, desc, JSON
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from config import config, get_latest_file
 from app.models.base import BaseModel
 from datetime import datetime
@@ -33,6 +34,13 @@ class SteamModel(BaseModel):
         self.merge_logs_table = Table(
             'merge_logs', self.metadata,
             Column('id', Integer, primary_key=True)
+        )
+        self.steam_cache_table = Table(
+            'steam_cache', self.metadata,
+            Column('id', Integer, primary_key=True),
+            Column('game_name', String, unique=True),
+            Column('similar_games', JSON),
+            Column('updated_at', DateTime)
         )
         self.api_url = config.STEAM_API_URL
         self.swagger_url = config.STEAM_SWAGGER_URL
@@ -104,10 +112,6 @@ class SteamModel(BaseModel):
                 print("No merge logs found in database.")
                 return
 
-        if not self.check_api_alive():
-            print("Steam API is not available. Skipping training.")
-            return
-
         print(f"Training Steam model using data from merge_log_id: {merge_log_id}")
 
         # 1. Load interactions
@@ -145,13 +149,33 @@ class SteamModel(BaseModel):
             print("No interacted games found to search for similar ones.")
             return
 
-        # Start callback server
-        self.start_callback_server()
-        
         # 4. Batch requests to Steam API iteratively
         batch_size = config.STEAM_BATCH_SIZE
         timeout = config.STEAM_CALLBACK_TIMEOUT
+
+        # Load internal cache from database
+        game_names_normalized = [str(g).lower().strip() for g in all_games_to_search]
+        if game_names_normalized:
+            query = self.steam_cache_table.select().where(self.steam_cache_table.c.game_name.in_(game_names_normalized))
+            with self.engine.connect() as conn:
+                cached_results = conn.execute(query).fetchall()
+                for row in cached_results:
+                    self.results[row.game_name] = row.similar_games
         
+        # Filter out games already in cache
+        all_games_to_search = [g for g in all_games_to_search if str(g).lower().strip() not in self.results]
+        
+        if not all_games_to_search:
+            print("All games are already in cache. Skipping API requests.")
+        else:
+            if not self.check_api_alive():
+                print("Steam API is not available. Using only cached data.")
+                all_games_to_search = []
+            else:
+                print(f"Found {len(all_games_to_search)} games to request from Steam API (after caching).")
+                # Start callback server only if we need to request from API
+                self.start_callback_server()
+
         for i in range(0, len(all_games_to_search), batch_size):
             batch = all_games_to_search[i:i + batch_size]
             batch_normalized = [str(g).lower().strip() for g in batch]
@@ -201,6 +225,32 @@ class SteamModel(BaseModel):
                 
                 print(f"\rWaiting for batch {i//batch_size + 1} results... {len(current_batch_pending)} games pending.")
                 time.sleep(5)
+
+            # Save batch results to internal cache
+            with self.results_lock:
+                new_cache_entries = []
+                for g in batch_normalized:
+                    if g in self.results:
+                        new_cache_entries.append({
+                            'game_name': g,
+                            'similar_games': self.results[g],
+                            'updated_at': datetime.now()
+                        })
+            
+            if new_cache_entries:
+                try:
+                    with self.engine.begin() as conn:
+                        stmt = pg_insert(self.steam_cache_table).values(new_cache_entries)
+                        stmt = stmt.on_conflict_do_update(
+                            index_elements=['game_name'],
+                            set_={
+                                'similar_games': stmt.excluded.similar_games,
+                                'updated_at': stmt.excluded.updated_at
+                            }
+                        )
+                        conn.execute(stmt)
+                except Exception as e:
+                    print(f"Error saving results to cache: {e}")
 
         # 6. Generate Recommendations
         all_recs = []
