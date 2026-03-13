@@ -27,8 +27,8 @@ const UserPage = () => {
   if (error) return <Alert variant="danger">Ошибка при загрузке данных пользователя</Alert>
 
   const interactions = interactionsQuery.data
-  const recommendations = recsQuery.data?.recommendations || []
-  const excludedRecommendations = recsQuery.data?.excluded_recommendations || []
+  const recommendations = [...(recsQuery.data?.recommendations || [])].reverse()
+  const excludedRecommendations = [...(recsQuery.data?.excluded_recommendations || [])].reverse()
 
   const renderProductName = (name: string, skuCode: string | null) => {
     if (skuCode) {
