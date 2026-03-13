@@ -31,11 +31,17 @@ class CFModel(BaseModel):
             result = conn.execute(query).fetchone()
             return result.id if result else None
 
-    def fit(self, merge_log_id: int = None, top_n: int = 10, neighbor_count: int = 5, neighbor_thresh: float = 0.3):
+    def fit(self, merge_log_id: int = None, top_n: int = None, neighbor_count: int = None, neighbor_thresh: float = None):
         """
         Train the model using data from user_interactions for a specific merge_log_id.
         If merge_log_id is None, use the latest one.
         """
+        if top_n is None:
+            top_n = config.CF_TOP_N
+        if neighbor_count is None:
+            neighbor_count = config.CF_NEIGHBOR_COUNT
+        if neighbor_thresh is None:
+            neighbor_thresh = config.CF_NEIGHBOR_THRESH
         if merge_log_id is None:
             merge_log_id = self.get_latest_merge_log_id()
             if merge_log_id is None:

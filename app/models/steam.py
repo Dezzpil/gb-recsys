@@ -87,7 +87,16 @@ class SteamModel(BaseModel):
         # Give server a moment to start
         time.sleep(1)
 
-    def fit(self, merge_log_id: int = None, top_n: int = 10, max_games: int = None):
+    def fit(self, merge_log_id: int = None, top_n: int = None, max_games: int = None):
+        if top_n is None:
+            top_n = config.STEAM_TOP_N
+        if max_games is None:
+            max_games = config.STEAM_MAX_GAMES_TO_SEARCH
+            # We treat 0 as "no limit" for the background process, 
+            # but fit() might be called with None explicitly.
+            if max_games == 0:
+                max_games = None
+
         if merge_log_id is None:
             merge_log_id = self.get_latest_merge_log_id()
             if merge_log_id is None:
@@ -139,7 +148,7 @@ class SteamModel(BaseModel):
         self.start_callback_server()
         
         # 4. Batch requests to Steam API
-        batch_size = 10
+        batch_size = config.STEAM_BATCH_SIZE
         for i in range(0, len(all_games_to_search), batch_size):
             batch = all_games_to_search[i:i + batch_size]
             batch_normalized = [str(g).lower().strip() for g in batch]
@@ -164,7 +173,7 @@ class SteamModel(BaseModel):
                         self.pending_games.discard(g)
 
         # 5. Wait for all callback results
-        timeout = 60  # Reduced for pipeline reliability
+        timeout = config.STEAM_CALLBACK_TIMEOUT
         start_wait = time.time()
         while True:
             with self.results_lock:
