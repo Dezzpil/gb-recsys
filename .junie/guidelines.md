@@ -5,7 +5,8 @@
 - **Язык**: Python 3.11+
 - **Менеджер пакетов**: Conda (для базовых зависимостей, таких как `lightfm`) + Pip (`requirements.txt`)
 - **База данных**: PostgreSQL v17 (логирование процессов)
-- **Библиотеки**: `RecTools`, `implicit`, `lightfm`, `pandas`, `SQLAlchemy`, `alembic`
+- **Библиотеки**: `RecTools`, `implicit`, `lightfm`, `pandas`, `SQLAlchemy`, `alembic`, `FastAPI`, `Uvicorn`, `Pydantic`
+- **Фронтенд**: React (Vite, TypeScript, Tailwind, Lucide Icons)
 
 ## Содержание README.md
 
@@ -14,13 +15,18 @@
 ## Структура проекта
 
 - `add_products_to_orders.py` — скрипт для обогащения данных о покупках информацией о продуктах (генерация случайных покупок для тестов).
-- `app/` — основные скрипты обработки данных:
+- `app/` — основные скрипты обработки данных и API:
+    - `api.py` — FastAPI сервис для предоставления рекомендаций и статистики.
     - `export_metrika.py` — автоматизированная выгрузка данных из Яндекс.Метрики через Logs API.
     - `merge_metrika_orders.py` — объединение данных заказов и Метрики в единый датасет для обучения.
-    - `train_cf.py` — обучение модели коллаборативной фильтрации.
+    - `pipeline.py` — централизованный запуск полного цикла (выгрузка -> объединение -> обучение всех моделей).
+    - `recommender.py` — логика ранжирования и объединения рекомендаций от разных моделей.
+    - `train_cf.py` / `train_similar.py` / `train_steam.py` — скрипты для отдельного обучения соответствующих моделей.
     - `models/` — реализация моделей рекомендаций:
         - `base.py` — базовый класс моделей.
         - `cf.py` — реализация User-based Collaborative Filtering.
+        - `similar.py` — рекомендации на основе похожих игр (поле `similar` в справочнике).
+        - `steam.py` — рекомендации на базе данных Steam API.
 - `assets/` — папка с исходными данными и Jupyter-ноутбуками:
     - `01-cf.ipynb` — эксперименты с User-based CF.
     - `04-metrika-pipeline.ipynb` — пайплайн подготовки данных Метрики.
@@ -31,8 +37,9 @@
     - `metrika/` — выгруженные логи Яндекс.Метрики.
     - `orders/` — файлы заказов, включая версии с продуктами.
     - `products/` — справочники продуктов.
-    - `merged/` — результаты объединения (email, product_id, weight).
+    - `merged/` — результаты объединения и графики распределения.
 - `migrations/` — миграции базы данных (Alembic).
+- `web/` — React-приложение для мониторинга процессов и визуализации рекомендаций.
 - `config.py` — централизованная конфигурация через `.env`.
 - `docker-compose.yml` — запуск PostgreSQL.
 - `environment.yml` — конфигурация Conda-окружения.
@@ -62,21 +69,40 @@
 - **Просмотр (View/Impression)** = `0.5`
 - Если для пары (пользователь, товар) есть оба события, выбирается **максимальный вес** (`1.0`).
 
-### 3. Схема базы данных
-В БД PostgreSQL хранятся логи процессов для мониторинга:
-- `metrika_logs`: `start_time`, `duration`, `period_start`, `period_end`, `file_size`, `records_count`.
-- `merge_logs`: `start_time`, `duration`, `metrika_file`, `orders_file`, `orders_records_count`, `unique_emails_count`, `unique_products_count`.
-- `recommendations`: `email`, `product_id`, `score`, `model_name`, `merge_log_id`, `created_at`.
+Результаты матчинга сохраняются в таблицу `user_interactions` с привязкой к `merge_log_id`.
 
-### 4. Обучение моделей (fit / predict)
-Все модели должны наследоваться от `BaseModel` и реализовывать методы:
-- `fit(merge_log_id)`: Обучение модели на данных `user_interactions`, соответствующих указанному `merge_log_id`. Результат обучения (топ рекомендаций) сохраняется в таблицу `recommendations`.
-- `predict(email)`: Получение списка рекомендованных `product_id` для пользователя.
+### 3. Пайплайн обучения (`pipeline.py`)
+Автоматизирует полный цикл подготовки данных и обучения моделей. Последовательно запускает:
+1. `MetrikaExporter.run_export()` — обновление логов Метрики.
+2. `run_merge()` — создание нового датасета взаимодействий.
+3. `fit()` для всех активных моделей (`CFModel`, `SimilarModel`, `SteamModel`).
+Результаты обучения каждой модели логируются в `model_training_logs`.
 
-**Collaborative Filtering (CF):**
-Алгоритм основан на сходстве пользователей (User-based). Использует матрицу "пользователь-товар" с весами (1.0 — покупка, 0.5 — просмотр). Сходство рассчитывается через `cosine_similarity`.
+### 4. Схема базы данных
+В БД PostgreSQL хранятся логи процессов и результаты:
+- `metrika_logs`: логи выгрузки из Метрики.
+- `merge_logs`: логи объединения данных (кол-во email, товаров и т.д.).
+- `model_training_logs`: логи обучения моделей (`model_name`, `duration`, `status`, `recommendations_count`).
+- `user_interactions`: все пары пользователь-товар для каждого мерджа (`email`, `product_id`, `weight`, `merge_log_id`).
+- `recommendations`: итоговые рекомендации (`email`, `product_id`, `score`, `model_name`, `merge_log_id`).
+
+### 5. Модели и ранжирование
+Все модели наследуются от `BaseModel` и реализуют `fit(merge_log_id)` и `predict(email)`.
+
+**Используемые модели:**
+- **Similar Games (`similar_games`)**: Рекомендует товары на основе поля `similar` в справочнике продуктов.
+- **Steam (`steam`)**: Использует Steam API для поиска похожих игр на основе истории пользователя.
+- **Collaborative Filtering (`user_based_cf`)**: User-based подход (косинусное сходство пользователей).
+
+**Алгоритм ранжирования (`recommender.py`):**
+Для формирования итогового списка (лимит 10 товаров) используется приоритет моделей:
+1. `similar_games`
+2. `steam`
+3. `user_based_cf`
+Рекомендации добавляются в очередь, пока не будет достигнут лимит. Дубликаты исключаются.
 
 ## Рекомендации по разработке
 
 1. **Изменение схемы данных**: При изменении структуры БД необходимо создавать новую миграцию: `alembic revision --autogenerate -m "..."`.
 1. **Обработка отсутствующих товаров**: Скрипт матчинга сохраняет список товаров, которые не удалось найти в справочнике, в `data/merged/YYYYMMDD_missing_products.txt`. Эти данные следует использовать для актуализации справочника `gb-products.csv`.
+1. **API**: При добавлении новых эндпоинтов в `app/api.py` необходимо обновлять соответствующие типы в `web/src/api/api.ts`.
