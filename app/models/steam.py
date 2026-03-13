@@ -10,6 +10,7 @@ import threading
 from fastapi import FastAPI
 import uvicorn
 import logging
+import uuid
 
 # Disable uvicorn access logging to keep output clean
 logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
@@ -36,8 +37,8 @@ class SteamModel(BaseModel):
         self.api_url = config.STEAM_API_URL
         self.swagger_url = config.STEAM_SWAGGER_URL
         self.callback_port = config.STEAM_CALLBACK_PORT
-        self.callback_path = "/callback"
-        self.callback_url = f"http://127.0.0.1:{self.callback_port}{self.callback_path}"
+        self.callback_path = "/callback/{batch_id}"
+        self.callback_base_url = f"http://127.0.0.1:{self.callback_port}/callback"
         self.results = {}
         self.results_lock = threading.Lock()
         self.pending_games = set()
@@ -64,11 +65,11 @@ class SteamModel(BaseModel):
         app = FastAPI()
 
         @app.post(self.callback_path)
-        async def callback(payload: dict):
+        async def callback(batch_id: str, payload: dict):
             with self.results_lock:
                 results = payload.get("results", {})
                 if results:
-                    print(f"\nReceived callback for {len(results)} games.")
+                    print(f"\rReceived callback for batch {batch_id} with {len(results)} games.")
                 for game, similar_games in results.items():
                     game_key = game.lower().strip()
                     self.results[game_key] = similar_games
@@ -147,18 +148,26 @@ class SteamModel(BaseModel):
         # Start callback server
         self.start_callback_server()
         
-        # 4. Batch requests to Steam API
+        # 4. Batch requests to Steam API iteratively
         batch_size = config.STEAM_BATCH_SIZE
+        timeout = config.STEAM_CALLBACK_TIMEOUT
+        
         for i in range(0, len(all_games_to_search), batch_size):
             batch = all_games_to_search[i:i + batch_size]
             batch_normalized = [str(g).lower().strip() for g in batch]
+            
             with self.results_lock:
                 self.pending_games.update(batch_normalized)
             
+            batch_id = str(uuid.uuid4())
+            callback_url = f"{self.callback_base_url}/{batch_id}"
+            
             payload = {
                 "games": batch,
-                "callbackUrl": self.callback_url
+                "callbackUrl": callback_url
             }
+            
+            print(f"Sending batch {i//batch_size + 1}: {len(batch)} games...")
             try:
                 resp = requests.post(self.api_url, json=payload, timeout=10)
                 if resp.status_code != 202:
@@ -166,24 +175,32 @@ class SteamModel(BaseModel):
                     with self.results_lock:
                         for g in batch_normalized:
                             self.pending_games.discard(g)
+                    continue
             except Exception as e:
                 print(f"Error sending request to Steam API: {e}")
                 with self.results_lock:
                     for g in batch_normalized:
                         self.pending_games.discard(g)
+                continue
 
-        # 5. Wait for all callback results
-        timeout = config.STEAM_CALLBACK_TIMEOUT
-        start_wait = time.time()
-        while True:
-            with self.results_lock:
-                if not self.pending_games:
+            # Wait for CURRENT batch results
+            start_wait = time.time()
+            while True:
+                with self.results_lock:
+                    # Check if any games from the CURRENT batch are still pending
+                    current_batch_pending = [g for g in batch_normalized if g in self.pending_games]
+                    if not current_batch_pending:
+                        break
+                
+                if time.time() - start_wait > timeout:
+                    print(f"Timeout reached waiting for batch {i//batch_size + 1} results.")
+                    with self.results_lock:
+                        for g in batch_normalized:
+                            self.pending_games.discard(g)
                     break
-            if time.time() - start_wait > timeout:
-                print("Timeout reached waiting for Steam API callback results.")
-                break
-            print(f"Waiting for results... {len(self.pending_games)} games pending.")
-            time.sleep(5)
+                
+                print(f"\rWaiting for batch {i//batch_size + 1} results... {len(current_batch_pending)} games pending.")
+                time.sleep(5)
 
         # 6. Generate Recommendations
         all_recs = []
