@@ -65,21 +65,21 @@ const MergeDetailsPage = () => {
       <Row className="mb-5 g-4 text-start">
         <Col xs={12}>
           <Card className="border-0 shadow-sm">
-            <Card.Header className="bg-transparent border-0 fw-bold pt-4 px-4">Основная информация</Card.Header>
+            <Card.Header className="bg-transparent border-0 fw-bold pt-4 px-4">Основная информация и статистика</Card.Header>
             <Card.Body className="p-4">
               <Row>
                 <Col md={6}>
-                  <div className="mb-3">
+                  <div className="mb-2">
                     <div className="text-muted small">Время начала</div>
                     <div className="fw-medium">{moment(merge.start_time).format('YYYY-MM-DD HH:mm:ss')}</div>
                   </div>
-                  <div className="mb-3">
+                  <div className="mb-2">
                     <div className="text-muted small">Длительность</div>
                     <div className="fw-medium">{merge.duration.toFixed(2)} сек.</div>
                   </div>
                 </Col>
                 <Col md={6}>
-                  <div className="mb-3">
+                  <div className="mb-2">
                     <div className="text-muted small">Файл Метрики</div>
                     <div className="fw-medium text-break">{merge.metrika_file}</div>
                   </div>
@@ -89,13 +89,7 @@ const MergeDetailsPage = () => {
                   </div>
                 </Col>
               </Row>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col xs={12}>
-          <Card className="border-0 shadow-sm">
-            <Card.Header className="bg-transparent border-0 fw-bold pt-4 px-4">Статистика</Card.Header>
-            <Card.Body className="p-4">
+              <hr className="my-4 opacity-10" />
               <Row className="mb-4">
                 <Col xs={4}>
                   <div className="text-muted small">Пользователи</div>
@@ -119,6 +113,29 @@ const MergeDetailsPage = () => {
                     <Badge bg="light" className="text-dark border font-monospace fw-normal">{stat.count}</Badge>
                   </div>
                 ))}
+              </div>
+            </Card.Body>
+          </Card>
+        </Col>
+      </Row>
+
+      <Row className="mb-5">
+        <Col xs={12}>
+          <Card className="border-0 shadow-sm overflow-hidden">
+            <Card.Header className="bg-transparent border-0 fw-bold pt-4 px-4">Распределение популярности продуктов</Card.Header>
+            <Card.Body className="p-0">
+              <div className="bg-light d-flex justify-content-center align-items-center" style={{ minHeight: '200px' }}>
+                <img 
+                  src={merge.plot_url} 
+                  alt="Distribution Plot" 
+                  className="img-fluid w-100"
+                  style={{ maxHeight: '500px', objectFit: 'contain' }}
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    const card = target.closest('.card') as HTMLElement;
+                    if (card) card.style.display = 'none';
+                  }}
+                />
               </div>
             </Card.Body>
           </Card>

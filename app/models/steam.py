@@ -164,7 +164,7 @@ class SteamModel(BaseModel):
                         self.pending_games.discard(g)
 
         # 5. Wait for all callback results
-        timeout = 600  # 10 minutes
+        timeout = 60  # Reduced for pipeline reliability
         start_wait = time.time()
         while True:
             with self.results_lock:

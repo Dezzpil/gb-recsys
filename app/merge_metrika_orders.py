@@ -3,6 +3,10 @@ import pandas as pd
 import ast
 import html
 import time
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import numpy as np
 from datetime import datetime
 from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, Float, DateTime
 from config import config, get_latest_file
@@ -178,7 +182,45 @@ def run_merge():
     
     print(f"Merge completed. Results saved to {output_csv}.")
     print(f"Unique emails: {unique_emails_count}, Unique products: {unique_products_count}")
+    
+    # 6.4 Generate plot
+    try:
+        generate_plot(df_purchases, df_views, merge_log_id)
+    except Exception as e:
+        print(f"Error generating plot: {e}")
+        
     print(f"Logged to DB with merge_log_id: {merge_log_id}")
+    return merge_log_id
+
+def generate_plot(df_purchases, df_views, merge_log_id):
+    # Calculate counts per product
+    purchase_counts = df_purchases['product_id'].value_counts()
+    view_counts = df_views['product_id'].value_counts()
+    
+    # Log-transform counts to smooth peaks
+    purchase_log = np.log1p(purchase_counts)
+    view_log = np.log1p(view_counts)
+    
+    # Create wide plot
+    plt.figure(figsize=(15, 6))
+    
+    # Plot distributions
+    plt.hist(view_log, bins=50, alpha=0.6, label='Просмотры (log)', color='#3498db')
+    plt.hist(purchase_log, bins=50, alpha=0.6, label='Покупки (log)', color='#2ecc71')
+    
+    plt.title(f'Распределение популярности продуктов (Merge #{merge_log_id})', fontsize=16, fontweight='bold')
+    plt.xlabel('log(Количество взаимодействий + 1)', fontsize=12)
+    plt.ylabel('Количество уникальных продуктов', fontsize=12)
+    plt.legend(fontsize=12, loc='upper right')
+    plt.grid(True, linestyle='--', alpha=0.3)
+    
+    # Save image
+    plot_filename = f"merge_{merge_log_id}_plot.png"
+    plot_path = os.path.join(config.MERGED_DATA_DIR, plot_filename)
+    plt.savefig(plot_path, bbox_inches='tight', dpi=120)
+    plt.close()
+    print(f"Distribution plot saved to {plot_path}")
+    return plot_path
 
 if __name__ == "__main__":
     run_merge()

@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import FileResponse
 from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, Float, DateTime, select, func, desc, and_, asc, case
 from app.recommender import reccomender
 from config import config, get_latest_file
@@ -95,6 +96,7 @@ async def get_merge_details(merge_id: int):
             raise HTTPException(status_code=404, detail="Merge log not found")
         
         merge_data = dict(merge._mapping)
+        merge_data['plot_url'] = f"/api/merges/{merge_id}/plot"
         
         # Дополнительная информация по рекомендациям
         # Считаем количество рекомендаций по моделям
@@ -120,6 +122,18 @@ async def get_merge_details(merge_id: int):
         merge_data['top_users_in_recs'] = [dict(row._mapping) for row in top_users]
         
         return merge_data
+
+@app.get("/merges/{merge_id}/plot")
+async def get_merge_plot(merge_id: int):
+    """Возвращает изображение графика распределения для объединения."""
+    plot_filename = f"merge_{merge_id}_plot.png"
+    plot_path = os.path.join(config.MERGED_DATA_DIR, plot_filename)
+    
+    if not os.path.exists(plot_path):
+        # Попробуем найти файлы в директории на случай если merge_log_id не совпадает с именем файла (хотя должен)
+        raise HTTPException(status_code=404, detail="Plot not found for this merge")
+        
+    return FileResponse(plot_path)
 
 @app.get("/merges/{merge_id}/users")
 async def get_merge_users(
