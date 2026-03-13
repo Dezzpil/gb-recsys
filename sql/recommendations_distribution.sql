@@ -10,7 +10,7 @@ WITH email_recommendations_count AS (
     FROM 
         recommendations r
     WHERE 
-        r.model_name IN ('user_based_cf', 'similar_games')
+        r.model_name IN ('user_based_cf', 'similar_games', 'steam')
         AND r.email IN (SELECT DISTINCT email FROM user_interactions)
     GROUP BY 
         r.email

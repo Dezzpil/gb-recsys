@@ -47,3 +47,5 @@ typing-inspection==0.4.2
 typing_extensions==4.15.0
 tzdata==2025.3
 urllib3 @ file:///home/conda/feedstock_root/build_artifacts/urllib3_1767817748113/work
+fastapi==0.115.11
+uvicorn==0.34.0

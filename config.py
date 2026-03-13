@@ -20,6 +20,9 @@ class Config:
     STEAM_SWAGGER_URL = os.getenv("STEAM_SWAGGER_URL", "http://127.0.0.1:3000/swagger.json")
     STEAM_CALLBACK_PORT = int(os.getenv("STEAM_CALLBACK_PORT", "3001"))
 
+    API_HOST = os.getenv("API_HOST", "0.0.0.0")
+    API_PORT = int(os.getenv("API_PORT", "4000"))
+
 config = Config()
 
 def get_latest_file(pattern):

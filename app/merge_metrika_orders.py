@@ -149,6 +149,7 @@ def run_merge():
     
     unique_emails_count = df_final['email'].nunique()
     unique_products_count = df_final['product_id'].nunique()
+    interactions_count = len(df_final)
     duration = time.time() - t0
 
     with engine.begin() as conn:
