@@ -5,6 +5,7 @@ import { getMergeDetails, getMergeUsers } from '../api/api'
 import { Table, Row, Col, Card, Spinner, Alert, Badge, Form, Pagination } from 'react-bootstrap'
 import { FaUser, FaSortAmountDown, FaSortAmountUp, FaSearch } from 'react-icons/fa'
 import { useForm } from 'react-hook-form'
+import moment from 'moment'
 
 const MergeDetailsPage = () => {
   const { id } = useParams<{ id: string }>()
@@ -70,7 +71,7 @@ const MergeDetailsPage = () => {
                 <Col md={6}>
                   <div className="mb-3">
                     <div className="text-muted small">Время начала</div>
-                    <div className="fw-medium">{new Date(merge.start_time).toLocaleString()}</div>
+                    <div className="fw-medium">{moment(merge.start_time).format('YYYY-MM-DD HH:mm:ss')}</div>
                   </div>
                   <div className="mb-3">
                     <div className="text-muted small">Длительность</div>

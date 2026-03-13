@@ -3,6 +3,7 @@ import { getMerges } from '../api/api'
 import { Table, Spinner, Alert } from 'react-bootstrap'
 import { Link } from 'react-router-dom'
 import { FaInfoCircle } from 'react-icons/fa'
+import moment from 'moment'
 
 const MergesPage = () => {
   const { data: merges, isLoading, error } = useQuery({
@@ -31,7 +32,7 @@ const MergesPage = () => {
           {merges.map((merge: any) => (
             <tr key={merge.id} className="align-middle">
               <td className="py-3">{merge.id}</td>
-              <td className="py-3">{new Date(merge.start_time).toLocaleString()}</td>
+              <td className="py-3">{moment(merge.start_time).format('YYYY-MM-DD HH:mm:ss')}</td>
               <td className="py-3">{merge.unique_emails_count}</td>
               <td className="py-3">{merge.unique_products_count}</td>
               <td className="py-3">{merge.interactions_count !== null ? merge.interactions_count : '-'}</td>

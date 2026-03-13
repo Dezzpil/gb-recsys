@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { getUserInteractions, getUserRecommendations } from '../api/api'
 import { Table, Row, Col, Card, Spinner, Alert, Badge } from 'react-bootstrap'
 import { FaHistory, FaShoppingBag, FaMagic } from 'react-icons/fa'
+import moment from 'moment'
 
 const UserPage = () => {
   const { email } = useParams<{ email: string }>()
@@ -62,7 +63,7 @@ const UserPage = () => {
                 <ul className="list-unstyled mb-0">
                   {interactions.purchases.map((item: any) => (
                     <li key={item.id} className="mb-2 pb-2">
-                      <span className="me-3 text-muted">{new Date(item.datetime).toLocaleDateString()}</span>
+                      <span className="me-3 text-muted">{moment(item.datetime).format('YYYY-MM-DD HH:mm:ss')}</span>
                       {renderProductName(item.product_name, item.skuCode)}
                     </li>
                   ))}
@@ -85,7 +86,7 @@ const UserPage = () => {
             <ul className="list-unstyled mb-0">
               {interactions.views.map((item: any) => (
                   <li key={item.id} className="mb-2 pb-2">
-                    <span className="me-3 text-muted">{new Date(item.datetime).toLocaleDateString()}</span>
+                    <span className="me-3 text-muted">{moment(item.datetime).format('YYYY-MM-DD HH:mm:ss')}</span>
                     {renderProductName(item.product_name, item.skuCode)}
                   </li>
               ))}
